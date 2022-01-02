@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
@@ -16,11 +17,12 @@ namespace Mongo.SignalR.Backplane
         private readonly HubConnectionStore _connections = new HubConnectionStore();
         private readonly MongoSubscriptionManager _groups = new MongoSubscriptionManager();
         private readonly MongoSubscriptionManager _users = new MongoSubscriptionManager();
-        private readonly SemaphoreSlim _connectionLock = new SemaphoreSlim(1);
+
         private readonly ILogger _logger;
         private readonly string _serverName = GenerateServerName();
-        private readonly MongoBackplaneOptions _options;
-        private readonly IMongoCollection<MongoHubStackExchangeDto> _stackExchange;
+        private readonly MongoOptions _options;
+        private readonly IMongoCollection<MongoInvocation> _stackExchange;
+
         private static string GenerateServerName()
         {
             // Use the machine name for convenient diagnostics, but add a guid to make it unique.
@@ -31,21 +33,21 @@ namespace Mongo.SignalR.Backplane
         public MongoHubLifetimeManager(
             IMongoClient client,
             ILogger<MongoHubLifetimeManager<THub>> logger,
-            IOptions<MongoBackplaneOptions> options)
+            IOptions<MongoOptions> options)
         {
             _logger = logger;
             _options = options.Value;
             _stackExchange = client.GetDatabase(_options.DatabaseName)
-                .GetCollection<MongoHubStackExchangeDto>(_options.CollectionName);
+                .GetCollection<MongoInvocation>(_options.CollectionName);
         }
-        
+
         public void Dispose()
         {
         }
 
         public override Task OnConnectedAsync(HubConnectionContext connection)
         {
-            connection.Features.Set<MongoFeature>(new MongoFeature());
+            connection.Features.Set(new MongoFeature());
             _connections.Add(connection);
             return Task.CompletedTask;
         }
@@ -56,21 +58,22 @@ namespace Mongo.SignalR.Backplane
             return Task.CompletedTask;
         }
 
-        public override async Task SendAllAsync(string methodName, object[] args, CancellationToken cancellationToken = new CancellationToken())
-        {
-            var dto = new MongoHubStackExchangeDto
-            {
-                Id = ObjectId.GenerateNewId(),
-                Message = new InvocationMessage(methodName, args),
-                Type = ExchangeType.SendAll
-            };
-            await _stackExchange.InsertOneAsync(dto, new InsertOneOptions(), cancellationToken);
-        }
-
-        public override Task SendAllExceptAsync(string methodName, object[] args, IReadOnlyList<string> excludedConnectionIds,
+        public override async Task SendAllAsync(string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            throw new NotImplementedException();
+            await _stackExchange.InsertOneAsync(
+                MongoInvocation.SendAll(methodName, args),
+                new InsertOneOptions(),
+                cancellationToken);
+        }
+
+        public override async Task SendAllExceptAsync(string methodName, object[] args,
+            IReadOnlyList<string> excludedConnectionIds,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            await _stackExchange.InsertOneAsync(
+                MongoInvocation.SendAllExcept(methodName, args, excludedConnectionIds)
+                , new InsertOneOptions(), cancellationToken);
         }
 
         public override Task SendConnectionAsync(string connectionId, string methodName, object[] args,
@@ -97,7 +100,8 @@ namespace Mongo.SignalR.Backplane
             throw new NotImplementedException();
         }
 
-        public override Task SendGroupExceptAsync(string groupName, string methodName, object[] args, IReadOnlyList<string> excludedConnectionIds,
+        public override Task SendGroupExceptAsync(string groupName, string methodName, object[] args,
+            IReadOnlyList<string> excludedConnectionIds,
             CancellationToken cancellationToken = new CancellationToken())
         {
             throw new NotImplementedException();

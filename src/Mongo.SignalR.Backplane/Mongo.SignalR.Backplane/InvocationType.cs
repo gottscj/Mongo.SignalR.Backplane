@@ -1,7 +1,8 @@
 ﻿namespace Mongo.SignalR.Backplane;
 
-public enum ExchangeType
+public enum InvocationType
 {
+    Init,
     SendAll,
     SendAllExcept,
     SendConnection,
