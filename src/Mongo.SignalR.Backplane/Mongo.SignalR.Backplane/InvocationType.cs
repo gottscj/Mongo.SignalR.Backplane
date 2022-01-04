@@ -1,16 +1,12 @@
 ﻿namespace Mongo.SignalR.Backplane;
 
-public enum InvocationType
+public static class InvocationType
 {
-    Init,
-    SendAll,
-    SendAllExcept,
-    SendConnection,
-    SendGroup,
-    SendGroups,
-    SendGroupExcept,
-    SendUser,
-    SendUsers,
-    AddToGroup,
-    RemoveFromGroup
+    public const string Init = "Init";
+    public const string All = "All";
+    public const string Connection = "Connection";
+    public const string Group = "Group";
+    public const string User = "User";
+    public const string AddToGroup = "AddToGroup";
+    public const string RemoveFromGroup = "RemoveFromGroup";
 }

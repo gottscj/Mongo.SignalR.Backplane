@@ -7,43 +7,61 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MongoDB.Bson;
-using MongoDB.Driver;
+using Mongo.SignalR.Backplane.Invocations;
 
 namespace Mongo.SignalR.Backplane
 {
     public class MongoHubLifetimeManager<THub> : HubLifetimeManager<THub>, IDisposable where THub : Hub
     {
-        private readonly HubConnectionStore _connections = new HubConnectionStore();
-        private readonly MongoSubscriptionManager _groups = new MongoSubscriptionManager();
-        private readonly MongoSubscriptionManager _users = new MongoSubscriptionManager();
+        private readonly HubConnectionStore _connections = new();
+        private readonly MongoSubscriptionManager _groups = new();
+        private readonly MongoSubscriptionManager _users = new();
 
+        private readonly IMongoDbContext _db;
         private readonly ILogger _logger;
-        private readonly string _serverName = GenerateServerName();
-        private readonly MongoOptions _options;
-        private readonly IMongoCollection<MongoInvocation> _stackExchange;
 
-        private static string GenerateServerName()
+        private readonly DefaultHubMessageSerializer _messageSerializer;
+        private readonly IDisposable _subscription;
+
+        public MongoHubLifetimeManager(
+            IMongoDbContext db,
+            IMongoObserver observer,
+            ILogger<MongoHubLifetimeManager<THub>> logger,
+            IHubProtocolResolver hubProtocolResolver)
+            : this(db, observer, logger, hubProtocolResolver, globalHubOptions: null, hubOptions: null)
         {
-            // Use the machine name for convenient diagnostics, but add a guid to make it unique.
-            // Example: MyServerName_02db60e5fab243b890a847fa5c4dcb29
-            return $"{Environment.MachineName}_{Guid.NewGuid():N}";
         }
 
         public MongoHubLifetimeManager(
-            IMongoClient client,
+            IMongoDbContext db,
+            IMongoObserver observer,
             ILogger<MongoHubLifetimeManager<THub>> logger,
-            IOptions<MongoOptions> options)
+            IHubProtocolResolver hubProtocolResolver,
+            IOptions<HubOptions>? globalHubOptions,
+            IOptions<HubOptions<THub>>? hubOptions)
         {
+            _db = db;
             _logger = logger;
-            _options = options.Value;
-            _stackExchange = client.GetDatabase(_options.DatabaseName)
-                .GetCollection<MongoInvocation>(_options.CollectionName);
+
+            _subscription = observer.Subscribe(OnInvocationMessage);
+
+            if (globalHubOptions != null && hubOptions != null)
+            {
+                _messageSerializer = new DefaultHubMessageSerializer(hubProtocolResolver,
+                    globalHubOptions.Value.SupportedProtocols, hubOptions.Value.SupportedProtocols);
+            }
+            else
+            {
+                var supportedProtocols = hubProtocolResolver.AllProtocols.Select(p => p.Name).ToList();
+                _messageSerializer = new DefaultHubMessageSerializer(hubProtocolResolver, supportedProtocols, null);
+            }
         }
 
         public void Dispose()
         {
+            _subscription.Dispose();
         }
+
 
         public override Task OnConnectedAsync(HubConnectionContext connection)
         {
@@ -55,80 +73,163 @@ namespace Mongo.SignalR.Backplane
         public override Task OnDisconnectedAsync(HubConnectionContext connection)
         {
             _connections.Remove(connection);
+            var feature = connection.Features.Get<MongoFeature>()!;
+            var groupNames = feature.Groups;
+
+            // Copy the groups to an array here because they get removed from this collection
+            // in RemoveFromGroup
+            foreach (var group in groupNames.ToArray())
+            {
+                RemoveFromGroup(connection, @group);
+            }
+
             return Task.CompletedTask;
         }
 
         public override async Task SendAllAsync(string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            await _stackExchange.InsertOneAsync(
-                MongoInvocation.SendAll(methodName, args),
-                new InsertOneOptions(),
-                cancellationToken);
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.All(messages), cancellationToken);
         }
 
         public override async Task SendAllExceptAsync(string methodName, object[] args,
+            IReadOnlyList<string>? excludedConnectionIds,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.All(messages, excludedConnectionIds), cancellationToken);
+        }
+
+        public override async Task SendConnectionAsync(string connectionId, string methodName, object[] args,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            // If the connection is local we can skip sending the message through the bus since we require sticky connections.
+            // This also saves serializing and deserializing the message!
+            var connection = _connections[connectionId];
+            if (connection != null)
+            {
+                await connection.WriteAsync(new InvocationMessage(methodName, args), cancellationToken).AsTask();
+                return;
+            }
+
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.Connection(messages, connectionId), cancellationToken);
+        }
+
+        public override async Task SendConnectionsAsync(IReadOnlyList<string> connectionIds, string methodName,
+            object[] args,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.Connection(messages, connectionIds), cancellationToken);
+        }
+
+        public override async Task SendGroupAsync(string groupName, string methodName, object[] args,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.Group(messages, groupName), cancellationToken);
+        }
+
+        public override async Task SendGroupsAsync(IReadOnlyList<string> groupNames, string methodName, object[] args,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.Group(messages, groupNames), cancellationToken);
+        }
+
+        public override async Task SendGroupExceptAsync(string groupName, string methodName, object[] args,
             IReadOnlyList<string> excludedConnectionIds,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            await _stackExchange.InsertOneAsync(
-                MongoInvocation.SendAllExcept(methodName, args, excludedConnectionIds)
-                , new InsertOneOptions(), cancellationToken);
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.Group(messages, groupName, excludedConnectionIds), cancellationToken);
         }
 
-        public override Task SendConnectionAsync(string connectionId, string methodName, object[] args,
+        public override async Task SendUserAsync(string userId, string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            throw new NotImplementedException();
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.User(messages, userId), cancellationToken);
         }
 
-        public override Task SendConnectionsAsync(IReadOnlyList<string> connectionIds, string methodName, object[] args,
+        public override async Task SendUsersAsync(IReadOnlyList<string> userIds, string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            throw new NotImplementedException();
+            var messages = GetMessages(methodName, args);
+            await _db.Add(MongoInvocation.User(messages, userIds), cancellationToken);
         }
 
-        public override Task SendGroupAsync(string groupName, string methodName, object[] args,
+        public override async Task AddToGroupAsync(string connectionId, string groupName,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            throw new NotImplementedException();
+            var connection = _connections[connectionId];
+            if (connection != null)
+            {
+                // short circuit if connection is on this server
+                AddToGroup(connection, groupName);
+                return;
+            }
+
+            await _db.Add(MongoInvocation.AddToGroup(connectionId, groupName), cancellationToken);
         }
 
-        public override Task SendGroupsAsync(IReadOnlyList<string> groupNames, string methodName, object[] args,
+
+        public override async Task RemoveFromGroupAsync(string connectionId, string groupName,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            throw new NotImplementedException();
+            var connection = _connections[connectionId];
+            if (connection != null)
+            {
+                // short circuit if connection is on this server
+                RemoveFromGroup(connection, groupName);
+                return;
+            }
+
+            await _db.Add(MongoInvocation.RemoveFromGroup(connectionId, groupName), cancellationToken);
         }
 
-        public override Task SendGroupExceptAsync(string groupName, string methodName, object[] args,
-            IReadOnlyList<string> excludedConnectionIds,
-            CancellationToken cancellationToken = new CancellationToken())
+        private IEnumerable<SerializedMessage> GetMessages(string methodName, object[]? args)
         {
-            throw new NotImplementedException();
+            var messages = _messageSerializer.SerializeMessage(new InvocationMessage(methodName, args));
+            return messages;
         }
 
-        public override Task SendUserAsync(string userId, string methodName, object[] args,
-            CancellationToken cancellationToken = new CancellationToken())
+        private async Task OnInvocationMessage(MongoInvocation invocation)
         {
-            throw new NotImplementedException();
+            switch (invocation)
+            {
+                case MongoInvocationAddToGroup:
+                    invocation.ProcessGroupAction(_connections, AddToGroup);
+                    return;
+                case MongoInvocationRemoveFromGroup:
+                    invocation.ProcessGroupAction(_connections, RemoveFromGroup);
+                    return;
+            }
+
+            await invocation.Process(_connections, _groups, _users);
         }
 
-        public override Task SendUsersAsync(IReadOnlyList<string> userIds, string methodName, object[] args,
-            CancellationToken cancellationToken = new CancellationToken())
+        private static void AddToGroup(HubConnectionContext connection, string groupName)
         {
-            throw new NotImplementedException();
+            var feature = connection.Features.Get<MongoFeature>()!;
+            var groupNames = feature.Groups;
+
+            lock (groupNames)
+            {
+                groupNames.Add(groupName);
+            }
         }
 
-        public override Task AddToGroupAsync(string connectionId, string groupName,
-            CancellationToken cancellationToken = new CancellationToken())
+        private static void RemoveFromGroup(HubConnectionContext connection, string groupName)
         {
-            throw new NotImplementedException();
-        }
-
-        public override Task RemoveFromGroupAsync(string connectionId, string groupName,
-            CancellationToken cancellationToken = new CancellationToken())
-        {
-            throw new NotImplementedException();
+            var feature = connection.Features.Get<MongoFeature>()!;
+            var groupNames = feature.Groups;
+            lock (groupNames)
+            {
+                groupNames.Remove(groupName);
+            }
         }
     }
 }

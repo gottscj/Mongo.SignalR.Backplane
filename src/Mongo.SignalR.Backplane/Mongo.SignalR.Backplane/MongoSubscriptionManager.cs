@@ -3,44 +3,49 @@
 
 using System;
 using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Mongo.SignalR.Backplane;
 
-internal class MongoSubscriptionManager
+public class MongoSubscriptionManager
 {
-    private readonly ConcurrentDictionary<string, HubConnectionStore> _subscriptions = new ConcurrentDictionary<string, HubConnectionStore>(StringComparer.Ordinal);
-    private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+    private readonly ConcurrentDictionary<string, HubConnectionStore> _subscriptions = new(StringComparer.Ordinal);
 
-    public async Task AddSubscriptionAsync(string id, HubConnectionContext connection, Func<string, HubConnectionStore, Task> subscribeMethod)
+    public List<HubConnectionContext> GetConnections(string id)
     {
-        await _lock.WaitAsync();
+        HubConnectionStore hubConnectionStore;
+        lock (_subscriptions)
+        {
+            _subscriptions.TryGetValue(id, out hubConnectionStore);
+        }
 
-        try
+        var connections = new List<HubConnectionContext>();
+        
+        if (hubConnectionStore != null)
+        {
+            foreach (var connection in hubConnectionStore)
+            {
+                connections.Add(connection);
+            }
+        }
+
+        return connections;
+    }
+    
+    public void AddSubscription(string id, HubConnectionContext connection)
+    {
+        lock (_subscriptions)
         {
             var subscription = _subscriptions.GetOrAdd(id, _ => new HubConnectionStore());
 
             subscription.Add(connection);
-
-            // Subscribe once
-            if (subscription.Count == 1)
-            {
-                await subscribeMethod(id, subscription);
-            }
-        }
-        finally
-        {
-            _lock.Release();
         }
     }
 
-    public async Task RemoveSubscriptionAsync(string id, HubConnectionContext connection, Func<string, Task> unsubscribeMethod)
+    public void RemoveSubscriptionAsync(string id, HubConnectionContext connection)
     {
-        await _lock.WaitAsync();
-
-        try
+        lock (_subscriptions)
         {
             if (!_subscriptions.TryGetValue(id, out var subscription))
             {
@@ -52,12 +57,7 @@ internal class MongoSubscriptionManager
             if (subscription.Count == 0)
             {
                 _subscriptions.TryRemove(id, out _);
-                await unsubscribeMethod(id);
             }
-        }
-        finally
-        {
-            _lock.Release();
         }
     }
 }

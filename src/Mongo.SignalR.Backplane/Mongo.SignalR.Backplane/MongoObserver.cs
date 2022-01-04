@@ -1,28 +1,69 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Mongo.SignalR.Backplane.Invocations;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Mongo.SignalR.Backplane
 {
-    public class MongoInvocationEventArgs : EventArgs
+    public class InvocationSubscriber : IDisposable
     {
-        public MongoInvocation Invocation { get; }
+        private readonly Func<MongoInvocation, Task> _invocationFunc;
+        private readonly Dictionary<Guid, InvocationSubscriber> _subscribers;
 
-        public MongoInvocationEventArgs(MongoInvocation invocation)
+        private readonly Guid _id;
+        
+        public InvocationSubscriber(Func<MongoInvocation, Task> invocationFunc, Dictionary<Guid, InvocationSubscriber> subscribers)
         {
-            Invocation = invocation;
+            _id = Guid.NewGuid();
+            _invocationFunc = invocationFunc;
+            _subscribers = subscribers;
+            lock (subscribers)
+            {
+                subscribers[_id] = this;
+            }
+        }
+
+        public async Task Execute(MongoInvocation invocation)
+        {
+            try
+            {
+                await _invocationFunc(invocation);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
+        
+        public void Dispose()
+        {
+            lock (_subscribers)
+            {
+                _subscribers.Remove(_id);
+            }
         }
     }
-    public class MongoObserver : BackgroundService
+
+    public interface IMongoObserver
+    {
+        public IDisposable Subscribe(Func<MongoInvocation, Task> subscriber);
+    }
+
+    public class MongoObserver : BackgroundService, IMongoObserver
     {
         private readonly ILogger _logger;
         private readonly IMongoDbContext _db;
         private int _failureTimeout = 5000;
         private const int MaxTimeout = 60000;
+
+        private readonly Dictionary<Guid, InvocationSubscriber> _subscribers =
+            new Dictionary<Guid, InvocationSubscriber>();
 
         public MongoObserver(ILogger<MongoObserver> logger, IMongoDbContext db)
         {
@@ -30,7 +71,13 @@ namespace Mongo.SignalR.Backplane
             _db = db;
         }
 
-        public event EventHandler<MongoInvocationEventArgs> OnInvocation; 
+        public IDisposable Subscribe(Func<MongoInvocation, Task> subscriber)
+        {
+            lock (_subscribers)
+            {
+                return new InvocationSubscriber(subscriber, _subscribers);
+            }
+        }
 
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
@@ -41,7 +88,7 @@ namespace Mongo.SignalR.Backplane
 
             var update = Builders<MongoInvocation>
                 .Update
-                .SetOnInsert(j => j.Type, InvocationType.Init);
+                .SetOnInsert(j => j.ServerName, InvocationType.Init);
 
             var lastEnqueued = _db.Invocations.FindOneAndUpdate(filter, update,
                 new FindOneAndUpdateOptions<MongoInvocation>
@@ -65,16 +112,23 @@ namespace Mongo.SignalR.Backplane
                         {
                             // Set the last value we saw 
                             lastId = invocation.Id;
-                            if (invocation.Type == InvocationType.Init)
+                            if (invocation.ServerName == InvocationType.Init)
                             {
                                 continue;
                             }
 
                             if (_logger.IsEnabled(LogLevel.Trace))
                             {
-                                _logger.LogTrace("Invocation '{Type}'", invocation.Type.ToString());
+                                _logger.LogTrace("Invocation '{Type}'", invocation.GetType().Name);
                             }
-                            OnInvocation?.Invoke(this, new MongoInvocationEventArgs(invocation));
+
+                            List<InvocationSubscriber> subscribers;
+                            lock (_subscribers)
+                            {
+                                subscribers = _subscribers.Values.ToList();
+                            }
+
+                            await Task.WhenAll(subscribers.Select(s => s.Execute(invocation)));
                         }
                     }
                 }
@@ -165,5 +219,6 @@ namespace Mongo.SignalR.Backplane
 
             return timeout;
         }
+
     }
 }

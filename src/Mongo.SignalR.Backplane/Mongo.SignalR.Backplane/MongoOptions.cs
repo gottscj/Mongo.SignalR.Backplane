@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
-using MongoDB.Driver;
 
 namespace Mongo.SignalR.Backplane;
 
 public class MongoOptions
 {
-    public string DatabaseName { get; set; } = "signalr";
-    public string CollectionName { get; set; } = "stack-exchange";
+    public string DatabaseName { get; set; } = "signalr.backplane";
 
-    private IMongoCollection<MongoInvocation> _stackExchange;
-    private readonly SemaphoreSlim _connectionLock = new SemaphoreSlim(1);
-
+    // Use the machine name for convenient diagnostics, but add a guid to make it unique.
+    // Example: MyServerName_02db60e5fab243b890a847fa5c4dcb29
+    public string? ServerName { get; set; } = $"{Environment.MachineName}_{Guid.NewGuid():N}";
 }
