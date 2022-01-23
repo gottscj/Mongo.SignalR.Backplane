@@ -3,7 +3,8 @@
 public static class InvocationType
 {
     public const string Init = "Init";
-    public const string All = "All";
+    public const string Base = "Base";
+    public const string All = "SendAll";
     public const string Connection = "Connection";
     public const string Group = "Group";
     public const string User = "User";

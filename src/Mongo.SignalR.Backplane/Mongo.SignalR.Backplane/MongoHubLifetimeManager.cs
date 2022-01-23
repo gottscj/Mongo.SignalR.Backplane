@@ -13,38 +13,28 @@ namespace Mongo.SignalR.Backplane
 {
     public class MongoHubLifetimeManager<THub> : HubLifetimeManager<THub>, IDisposable where THub : Hub
     {
-        private readonly HubConnectionStore _connections = new();
-        private readonly MongoSubscriptionManager _groups = new();
-        private readonly MongoSubscriptionManager _users = new();
+        private readonly MongoHubConnectionStore _connections;
+        private readonly MongoInvocationObserver _observer;
 
         private readonly IMongoDbContext _db;
         private readonly ILogger _logger;
 
         private readonly DefaultHubMessageSerializer _messageSerializer;
-        private readonly IDisposable _subscription;
+        private readonly Task _observeTask;
 
         public MongoHubLifetimeManager(
+            MongoHubConnectionStore connections,
+            MongoInvocationObserver observer,
             IMongoDbContext db,
-            IMongoObserver observer,
-            ILogger<MongoHubLifetimeManager<THub>> logger,
-            IHubProtocolResolver hubProtocolResolver)
-            : this(db, observer, logger, hubProtocolResolver, globalHubOptions: null, hubOptions: null)
-        {
-        }
-
-        public MongoHubLifetimeManager(
-            IMongoDbContext db,
-            IMongoObserver observer,
             ILogger<MongoHubLifetimeManager<THub>> logger,
             IHubProtocolResolver hubProtocolResolver,
-            IOptions<HubOptions>? globalHubOptions,
-            IOptions<HubOptions<THub>>? hubOptions)
+            IOptions<HubOptions>? globalHubOptions = null,
+            IOptions<HubOptions<THub>>? hubOptions = null)
         {
+            _connections = connections;
+            _observer = observer;
             _db = db;
             _logger = logger;
-
-            _subscription = observer.Subscribe(OnInvocationMessage);
-
             if (globalHubOptions != null && hubOptions != null)
             {
                 _messageSerializer = new DefaultHubMessageSerializer(hubProtocolResolver,
@@ -55,17 +45,12 @@ namespace Mongo.SignalR.Backplane
                 var supportedProtocols = hubProtocolResolver.AllProtocols.Select(p => p.Name).ToList();
                 _messageSerializer = new DefaultHubMessageSerializer(hubProtocolResolver, supportedProtocols, null);
             }
-        }
 
-        public void Dispose()
-        {
-            _subscription.Dispose();
+            _observeTask = _observer.ExecuteAsync(HandleInvocationMessage);
         }
-
 
         public override Task OnConnectedAsync(HubConnectionContext connection)
         {
-            connection.Features.Set(new MongoFeature());
             _connections.Add(connection);
             return Task.CompletedTask;
         }
@@ -73,16 +58,6 @@ namespace Mongo.SignalR.Backplane
         public override Task OnDisconnectedAsync(HubConnectionContext connection)
         {
             _connections.Remove(connection);
-            var feature = connection.Features.Get<MongoFeature>()!;
-            var groupNames = feature.Groups;
-
-            // Copy the groups to an array here because they get removed from this collection
-            // in RemoveFromGroup
-            foreach (var group in groupNames.ToArray())
-            {
-                RemoveFromGroup(connection, @group);
-            }
-
             return Task.CompletedTask;
         }
 
@@ -90,7 +65,7 @@ namespace Mongo.SignalR.Backplane
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.All(messages), cancellationToken);
+            await _db.Insert(MongoInvocation.SendAll(messages), cancellationToken);
         }
 
         public override async Task SendAllExceptAsync(string methodName, object[] args,
@@ -98,7 +73,7 @@ namespace Mongo.SignalR.Backplane
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.All(messages, excludedConnectionIds), cancellationToken);
+            await _db.Insert(MongoInvocation.SendAll(messages, excludedConnectionIds), cancellationToken);
         }
 
         public override async Task SendConnectionAsync(string connectionId, string methodName, object[] args,
@@ -114,7 +89,7 @@ namespace Mongo.SignalR.Backplane
             }
 
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.Connection(messages, connectionId), cancellationToken);
+            await _db.Insert(MongoInvocation.Connection(messages, connectionId), cancellationToken);
         }
 
         public override async Task SendConnectionsAsync(IReadOnlyList<string> connectionIds, string methodName,
@@ -122,21 +97,21 @@ namespace Mongo.SignalR.Backplane
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.Connection(messages, connectionIds), cancellationToken);
+            await _db.Insert(MongoInvocation.Connection(messages, connectionIds), cancellationToken);
         }
 
         public override async Task SendGroupAsync(string groupName, string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.Group(messages, groupName), cancellationToken);
+            await _db.Insert(MongoInvocation.SendGroup(messages, groupName), cancellationToken);
         }
 
         public override async Task SendGroupsAsync(IReadOnlyList<string> groupNames, string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.Group(messages, groupNames), cancellationToken);
+            await _db.Insert(MongoInvocation.SendGroup(messages, groupNames), cancellationToken);
         }
 
         public override async Task SendGroupExceptAsync(string groupName, string methodName, object[] args,
@@ -144,35 +119,34 @@ namespace Mongo.SignalR.Backplane
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.Group(messages, groupName, excludedConnectionIds), cancellationToken);
+            await _db.Insert(MongoInvocation.SendGroup(messages, groupName, excludedConnectionIds), cancellationToken);
         }
 
         public override async Task SendUserAsync(string userId, string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.User(messages, userId), cancellationToken);
+            await _db.Insert(MongoInvocation.SendUser(messages, userId), cancellationToken);
         }
 
         public override async Task SendUsersAsync(IReadOnlyList<string> userIds, string methodName, object[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
-            await _db.Add(MongoInvocation.User(messages, userIds), cancellationToken);
+            await _db.Insert(MongoInvocation.SendUsers(messages, userIds), cancellationToken);
         }
 
         public override async Task AddToGroupAsync(string connectionId, string groupName,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            var connection = _connections[connectionId];
-            if (connection != null)
+            if (_connections.AddToGroup(connectionId, groupName))
             {
                 // short circuit if connection is on this server
-                AddToGroup(connection, groupName);
+
                 return;
             }
 
-            await _db.Add(MongoInvocation.AddToGroup(connectionId, groupName), cancellationToken);
+            await _db.Insert(MongoInvocation.AddToGroup(connectionId, groupName), cancellationToken);
         }
 
 
@@ -183,11 +157,11 @@ namespace Mongo.SignalR.Backplane
             if (connection != null)
             {
                 // short circuit if connection is on this server
-                RemoveFromGroup(connection, groupName);
+                _connections.RemoveFromGroup(connectionId, groupName);
                 return;
             }
 
-            await _db.Add(MongoInvocation.RemoveFromGroup(connectionId, groupName), cancellationToken);
+            await _db.Insert(MongoInvocation.RemoveFromGroup(connectionId, groupName), cancellationToken);
         }
 
         private IEnumerable<SerializedMessage> GetMessages(string methodName, object[]? args)
@@ -196,40 +170,27 @@ namespace Mongo.SignalR.Backplane
             return messages;
         }
 
-        private async Task OnInvocationMessage(MongoInvocation invocation)
+        private async Task HandleInvocationMessage(MongoInvocation invocation)
         {
-            switch (invocation)
+            if (invocation is AddToGroupMongoInvocation)
             {
-                case MongoInvocationAddToGroup:
-                    invocation.ProcessGroupAction(_connections, AddToGroup);
-                    return;
-                case MongoInvocationRemoveFromGroup:
-                    invocation.ProcessGroupAction(_connections, RemoveFromGroup);
-                    return;
+                _connections.AddToGroup(invocation);
+                return;
             }
 
-            await invocation.Process(_connections, _groups, _users);
+            if (invocation is RemoveFromGroupMongoInvocation)
+            {
+                _connections.RemoveFromGroup(invocation);
+                return;
+            }
+
+            await invocation.Process(_connections);
         }
 
-        private static void AddToGroup(HubConnectionContext connection, string groupName)
+        public void Dispose()
         {
-            var feature = connection.Features.Get<MongoFeature>()!;
-            var groupNames = feature.Groups;
-
-            lock (groupNames)
-            {
-                groupNames.Add(groupName);
-            }
-        }
-
-        private static void RemoveFromGroup(HubConnectionContext connection, string groupName)
-        {
-            var feature = connection.Features.Get<MongoFeature>()!;
-            var groupNames = feature.Groups;
-            lock (groupNames)
-            {
-                groupNames.Remove(groupName);
-            }
+            _observer.Dispose();
+            _observeTask.Wait(1000);
         }
     }
 }

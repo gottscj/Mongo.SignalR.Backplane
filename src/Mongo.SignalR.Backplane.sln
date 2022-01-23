@@ -2,6 +2,10 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mongo.SignalR.Backplane", "Mongo.SignalR.Backplane\Mongo.SignalR.Backplane\Mongo.SignalR.Backplane.csproj", "{DE928404-1974-4514-BC85-6412F25390CC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoSignalR.Backplane.Sample", "MongoSignalR.Backplane.Sample\MongoSignalR.Backplane.Sample.csproj", "{193E6973-7E21-4BFE-9D7C-CD8CA77BDDD2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mongo.SignalR.Backplane.Tests", "Mongo.SignalR.Backplane.Tests\Mongo.SignalR.Backplane.Tests.csproj", "{FD4CC51B-2A24-4F15-A52F-A5825B0909BF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +16,13 @@ Global
 		{DE928404-1974-4514-BC85-6412F25390CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DE928404-1974-4514-BC85-6412F25390CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DE928404-1974-4514-BC85-6412F25390CC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{193E6973-7E21-4BFE-9D7C-CD8CA77BDDD2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{193E6973-7E21-4BFE-9D7C-CD8CA77BDDD2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{193E6973-7E21-4BFE-9D7C-CD8CA77BDDD2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{193E6973-7E21-4BFE-9D7C-CD8CA77BDDD2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD4CC51B-2A24-4F15-A52F-A5825B0909BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD4CC51B-2A24-4F15-A52F-A5825B0909BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD4CC51B-2A24-4F15-A52F-A5825B0909BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD4CC51B-2A24-4F15-A52F-A5825B0909BF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

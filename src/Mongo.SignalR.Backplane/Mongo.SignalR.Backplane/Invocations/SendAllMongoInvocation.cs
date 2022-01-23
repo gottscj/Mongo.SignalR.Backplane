@@ -6,19 +6,16 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Mongo.SignalR.Backplane.Invocations;
 
 [BsonDiscriminator(InvocationType.All)]
-public class MongoInvocationAll : MongoInvocation
+public class SendAllMongoInvocation : MongoInvocation
 {
-    public MongoInvocationAll(
+    public SendAllMongoInvocation(
         IEnumerable<SerializedMessage> messages, 
         IEnumerable<string>? excludedConnectionIds = null) 
         : base(messages, excludedConnectionIds)
     {
     }
 
-    public override async Task Process(
-        HubConnectionStore connections, 
-        MongoSubscriptionManager groups, 
-        MongoSubscriptionManager users)
+    public override async Task Process(MongoHubConnectionStore connections)
     {
         var hubMessage = GetSerializedHubMessage();
         var tasks = new List<Task>();

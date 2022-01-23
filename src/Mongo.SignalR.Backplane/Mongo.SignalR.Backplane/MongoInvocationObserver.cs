@@ -1,118 +1,56 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mongo.SignalR.Backplane.Invocations;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Mongo.SignalR.Backplane
 {
-    public class InvocationSubscriber : IDisposable
+    public class MongoInvocationObserver : IDisposable
     {
-        private readonly Func<MongoInvocation, Task> _invocationFunc;
-        private readonly Dictionary<Guid, InvocationSubscriber> _subscribers;
-
-        private readonly Guid _id;
-        
-        public InvocationSubscriber(Func<MongoInvocation, Task> invocationFunc, Dictionary<Guid, InvocationSubscriber> subscribers)
-        {
-            _id = Guid.NewGuid();
-            _invocationFunc = invocationFunc;
-            _subscribers = subscribers;
-            lock (subscribers)
-            {
-                subscribers[_id] = this;
-            }
-        }
-
-        public async Task Execute(MongoInvocation invocation)
-        {
-            try
-            {
-                await _invocationFunc(invocation);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-        }
-        
-        public void Dispose()
-        {
-            lock (_subscribers)
-            {
-                _subscribers.Remove(_id);
-            }
-        }
-    }
-
-    public interface IMongoObserver
-    {
-        public IDisposable Subscribe(Func<MongoInvocation, Task> subscriber);
-    }
-
-    public class MongoObserver : BackgroundService, IMongoObserver
-    {
-        private readonly ILogger _logger;
+        private readonly MongoOptions _options;
         private readonly IMongoDbContext _db;
-        private int _failureTimeout = 5000;
-        private const int MaxTimeout = 60000;
+        private readonly ILogger _logger;
+        private int _failureTimeout;
+        private readonly CancellationTokenSource _cts;
+        private readonly CancellationToken _cancellation;
 
-        private readonly Dictionary<Guid, InvocationSubscriber> _subscribers =
-            new Dictionary<Guid, InvocationSubscriber>();
-
-        public MongoObserver(ILogger<MongoObserver> logger, IMongoDbContext db)
+        public MongoInvocationObserver(
+            IMongoDbContext db,
+            IOptions<MongoOptions> options,
+            ILogger<MongoInvocationObserver> logger)
         {
-            _logger = logger;
+            _options = options.Value;
             _db = db;
+            _logger = logger;
+            _cts = new CancellationTokenSource();
+            _cancellation = _cts.Token;
         }
 
-        public IDisposable Subscribe(Func<MongoInvocation, Task> subscriber)
-        {
-            lock (_subscribers)
-            {
-                return new InvocationSubscriber(subscriber, _subscribers);
-            }
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+        public async Task ExecuteAsync(Func<MongoInvocation, Task> invocationHandler)
         {
             var options = new FindOptions<MongoInvocation> {CursorType = CursorType.TailableAwait};
 
-            var lastId = ObjectId.GenerateNewId(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc));
+            var lastId = ObjectId.GenerateNewId(DateTime.UtcNow);
             var filter = new BsonDocument("_id", new BsonDocument("$gt", lastId));
 
-            var update = Builders<MongoInvocation>
-                .Update
-                .SetOnInsert(j => j.ServerName, InvocationType.Init);
-
-            var lastEnqueued = _db.Invocations.FindOneAndUpdate(filter, update,
-                new FindOneAndUpdateOptions<MongoInvocation>
-                {
-                    IsUpsert = true,
-                    Sort = Builders<MongoInvocation>.Sort.Descending(j => j.Id),
-                    ReturnDocument = ReturnDocument.After
-                });
-
-            lastId = lastEnqueued.Id;
-            filter = new BsonDocument("_id", new BsonDocument("$gt", lastId));
-
-            while (!cancellationToken.IsCancellationRequested)
+            while (!_cancellation.IsCancellationRequested)
             {
                 try
                 {
                     // Start the cursor and wait for the initial response
-                    using (var cursor = _db.Invocations.FindSync(filter, options, cancellationToken))
+                    using var cursor = _db.Invocations.FindSync(filter, options, _cancellation);
+
+                    while (await cursor.MoveNextAsync(_cancellation))
                     {
-                        foreach (var invocation in cursor.ToEnumerable(cancellationToken))
+                        foreach (var invocation in cursor.Current)
                         {
                             // Set the last value we saw 
                             lastId = invocation.Id;
-                            if (invocation.ServerName == InvocationType.Init)
+                            if (invocation is InitMongoInvocation)
                             {
                                 continue;
                             }
@@ -122,13 +60,7 @@ namespace Mongo.SignalR.Backplane
                                 _logger.LogTrace("Invocation '{Type}'", invocation.GetType().Name);
                             }
 
-                            List<InvocationSubscriber> subscribers;
-                            lock (_subscribers)
-                            {
-                                subscribers = _subscribers.Values.ToList();
-                            }
-
-                            await Task.WhenAll(subscribers.Select(s => s.Execute(invocation)));
+                            await invocationHandler(invocation);
                         }
                     }
                 }
@@ -137,7 +69,7 @@ namespace Mongo.SignalR.Backplane
                 }
                 catch (MongoCommandException commandException)
                 {
-                    await HandleMongoCommandException(commandException, cancellationToken);
+                    await HandleMongoCommandException(commandException, _cancellation);
                 }
                 catch (Exception e)
                 {
@@ -153,6 +85,7 @@ namespace Mongo.SignalR.Backplane
                 }
             }
         }
+
 
         /// <summary>
         /// Default:
@@ -210,15 +143,20 @@ namespace Mongo.SignalR.Backplane
         /// <returns></returns>
         protected virtual int GetFailureTimeoutMs()
         {
-            var timeout = _failureTimeout;
+            var timeout = _options.FailureBackoffTimeoutMs;
             _failureTimeout += 5000;
-            if (_failureTimeout >= MaxTimeout)
+            if (_failureTimeout >= _options.MaxTimeoutMs)
             {
-                _failureTimeout = MaxTimeout;
+                _failureTimeout = _options.MaxTimeoutMs;
             }
 
             return timeout;
         }
 
+        public void Dispose()
+        {
+            _cts.Cancel();
+            _cts.Dispose();
+        }
     }
 }
