@@ -46,7 +46,7 @@ namespace Mongo.SignalR.Backplane
                 _messageSerializer = new DefaultHubMessageSerializer(hubProtocolResolver, supportedProtocols, null);
             }
 
-            _observeTask = _observer.ExecuteAsync(HandleInvocationMessage);
+            _observeTask = _observer.StartAsync();
         }
 
         public override Task OnConnectedAsync(HubConnectionContext connection)
@@ -168,23 +168,6 @@ namespace Mongo.SignalR.Backplane
         {
             var messages = _messageSerializer.SerializeMessage(new InvocationMessage(methodName, args));
             return messages;
-        }
-
-        private async Task HandleInvocationMessage(MongoInvocation invocation)
-        {
-            if (invocation is AddToGroupMongoInvocation)
-            {
-                _connections.AddToGroup(invocation);
-                return;
-            }
-
-            if (invocation is RemoveFromGroupMongoInvocation)
-            {
-                _connections.RemoveFromGroup(invocation);
-                return;
-            }
-
-            await invocation.Process(_connections);
         }
 
         public void Dispose()

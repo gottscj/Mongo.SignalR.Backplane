@@ -56,16 +56,19 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
         jsonOptions = jsonOptions ?? new NewtonsoftJsonHubProtocolOptions();
         var store = new MongoHubConnectionStore();
         var db = new MongoDbContext(options, client);
+        var observer = new MongoInvocationObserver(store, db, options, NullLogger<MongoInvocationObserver>.Instance);
+        var resolver = new DefaultHubProtocolResolver(new IHubProtocol[]
+        {
+            new NewtonsoftJsonHubProtocol(Options.Create(jsonOptions)),
+            new MessagePackHubProtocol(Options.Create(messagePackOptions)),
+        }, NullLogger<DefaultHubProtocolResolver>.Instance);
+        
         return new MongoHubLifetimeManager<Hub>(
             store,
-            new MongoInvocationObserver(db, options, NullLogger<MongoInvocationObserver>.Instance),
+            observer,
             db,
             NullLogger<MongoHubLifetimeManager<Hub>>.Instance,
-            new DefaultHubProtocolResolver(new IHubProtocol[]
-            {
-                new NewtonsoftJsonHubProtocol(Options.Create(jsonOptions)),
-                new MessagePackHubProtocol(Options.Create(messagePackOptions)),
-            }, NullLogger<DefaultHubProtocolResolver>.Instance));
+            resolver);
     }
 
     [Test, Category("unit")]

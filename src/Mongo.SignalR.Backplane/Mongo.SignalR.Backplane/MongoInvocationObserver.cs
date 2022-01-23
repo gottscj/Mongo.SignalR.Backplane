@@ -12,6 +12,7 @@ namespace Mongo.SignalR.Backplane
     public class MongoInvocationObserver : IDisposable
     {
         private readonly MongoOptions _options;
+        private readonly MongoHubConnectionStore _connectionStore;
         private readonly IMongoDbContext _db;
         private readonly ILogger _logger;
         private int _failureTimeout;
@@ -19,18 +20,20 @@ namespace Mongo.SignalR.Backplane
         private readonly CancellationToken _cancellation;
 
         public MongoInvocationObserver(
+            MongoHubConnectionStore connectionStore,
             IMongoDbContext db,
             IOptions<MongoOptions> options,
             ILogger<MongoInvocationObserver> logger)
         {
             _options = options.Value;
+            _connectionStore = connectionStore;
             _db = db;
             _logger = logger;
             _cts = new CancellationTokenSource();
             _cancellation = _cts.Token;
         }
 
-        public async Task ExecuteAsync(Func<MongoInvocation, Task> invocationHandler)
+        public async Task StartAsync()
         {
             var options = new FindOptions<MongoInvocation> {CursorType = CursorType.TailableAwait};
 
@@ -60,7 +63,7 @@ namespace Mongo.SignalR.Backplane
                                 _logger.LogTrace("Invocation '{Type}'", invocation.GetType().Name);
                             }
 
-                            await invocationHandler(invocation);
+                            await invocation.Process(_connectionStore);
                         }
                     }
                 }
