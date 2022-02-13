@@ -11,20 +11,17 @@ using Mongo.SignalR.Backplane.Invocations;
 
 namespace Mongo.SignalR.Backplane
 {
-    public class MongoHubLifetimeManager<THub> : HubLifetimeManager<THub>, IDisposable where THub : Hub
+    public class MongoHubLifetimeManager<THub> : HubLifetimeManager<THub> where THub : Hub
     {
         private readonly MongoHubConnectionStore _connections;
-        private readonly MongoInvocationObserver _observer;
 
         private readonly IMongoDbContext _db;
         private readonly ILogger _logger;
 
         private readonly DefaultHubMessageSerializer _messageSerializer;
-        private readonly Task _observeTask;
 
         public MongoHubLifetimeManager(
             MongoHubConnectionStore connections,
-            MongoInvocationObserver observer,
             IMongoDbContext db,
             ILogger<MongoHubLifetimeManager<THub>> logger,
             IHubProtocolResolver hubProtocolResolver,
@@ -32,7 +29,6 @@ namespace Mongo.SignalR.Backplane
             IOptions<HubOptions<THub>>? hubOptions = null)
         {
             _connections = connections;
-            _observer = observer;
             _db = db;
             _logger = logger;
             if (globalHubOptions != null && hubOptions != null)
@@ -45,8 +41,6 @@ namespace Mongo.SignalR.Backplane
                 var supportedProtocols = hubProtocolResolver.AllProtocols.Select(p => p.Name).ToList();
                 _messageSerializer = new DefaultHubMessageSerializer(hubProtocolResolver, supportedProtocols, null);
             }
-
-            _observeTask = _observer.StartAsync();
         }
 
         public override Task OnConnectedAsync(HubConnectionContext connection)
@@ -168,12 +162,6 @@ namespace Mongo.SignalR.Backplane
         {
             var messages = _messageSerializer.SerializeMessage(new InvocationMessage(methodName, args));
             return messages;
-        }
-
-        public void Dispose()
-        {
-            _observer.Dispose();
-            _observeTask.Wait(1000);
         }
     }
 }

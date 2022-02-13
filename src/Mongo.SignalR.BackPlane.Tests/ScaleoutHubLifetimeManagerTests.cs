@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using NUnit.Framework;
@@ -46,8 +45,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
         var backplane = CreateBackplane();
         using var client1 = new TestClient();
         using var client2 = new TestClient();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         var connection1 = HubConnectionContextUtils.Create(client1.Connection);
         var connection2 = HubConnectionContextUtils.Create(client2.Connection);
@@ -69,8 +68,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task InvokeAllAsyncWithMultipleServersDoesNotWriteToDisconnectedConnectionsOutput()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client1 = new TestClient();
         using var client2 = new TestClient();
@@ -98,8 +97,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     {
         var backplane = CreateBackplane();
 
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -120,8 +119,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     {
         var backplane = CreateBackplane();
 
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -143,7 +142,7 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task DisconnectConnectionRemovesConnectionFromGroup()
     {
         var backplane = CreateBackplane();
-        using var manager = CreateNewHubLifetimeManager(backplane);
+        var manager = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -167,7 +166,7 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task RemoveGroupFromLocalConnectionNotInGroupDoesNothing()
     {
         var backplane = CreateBackplane();
-        using var manager = CreateNewHubLifetimeManager(backplane);
+        var manager = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -185,8 +184,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task RemoveGroupFromConnectionOnDifferentServerNotInGroupDoesNothing()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -204,8 +203,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task AddGroupAsyncForConnectionOnDifferentServerWorks()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -227,7 +226,7 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task AddGroupAsyncForLocalConnectionAlreadyInGroupDoesNothing()
     {
         var backplane = CreateBackplane();
-        using var manager = CreateNewHubLifetimeManager(backplane);
+        var manager = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -251,8 +250,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task AddGroupAsyncForConnectionOnDifferentServerAlreadyInGroupDoesNothing()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -276,8 +275,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task RemoveGroupAsyncForConnectionOnDifferentServerWorks()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -305,8 +304,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task InvokeConnectionAsyncForLocalConnectionDoesNotPublishToBackplane()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         var connection = HubConnectionContextUtils.Create(client.Connection);
@@ -329,8 +328,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task WritingToRemoteConnectionThatFailsDoesNotThrow()
     {
         var backplane = CreateBackplane();
-        using var manager1 = CreateNewHubLifetimeManager(backplane);
-        using var manager2 = CreateNewHubLifetimeManager(backplane);
+        var manager1 = CreateNewHubLifetimeManager(backplane);
+        var manager2 = CreateNewHubLifetimeManager(backplane);
 
         using var client = new TestClient();
         // Force an exception when writing to connection
@@ -351,7 +350,7 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task WritingToGroupWithOneConnectionFailingSecondConnectionStillReceivesMessage()
     {
         var backplane = CreateBackplane();
-        using var manager = CreateNewHubLifetimeManager(backplane);
+        var manager = CreateNewHubLifetimeManager(backplane);
 
         using var client1 = new TestClient();
         using var client2 = new TestClient();
@@ -384,7 +383,7 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task InvokeUserSendsToAllConnectionsForUser()
     {
         var backplane = CreateBackplane();
-        using var manager = CreateNewHubLifetimeManager(backplane);
+        var manager = CreateNewHubLifetimeManager(backplane);
 
         using var client1 = new TestClient();
         using var client2 = new TestClient();
@@ -410,7 +409,7 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
     public async Task StillSubscribedToUserAfterOneOfMultipleConnectionsAssociatedWithUserDisconnects()
     {
         var backplane = CreateBackplane();
-        using var manager = CreateNewHubLifetimeManager(backplane);
+        var manager = CreateNewHubLifetimeManager(backplane);
 
         using var client1 = new TestClient();
         using var client2 = new TestClient();

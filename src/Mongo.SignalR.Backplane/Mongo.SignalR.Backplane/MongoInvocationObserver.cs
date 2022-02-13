@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mongo.SignalR.Backplane.Invocations;
@@ -9,15 +10,13 @@ using MongoDB.Driver;
 
 namespace Mongo.SignalR.Backplane
 {
-    public class MongoInvocationObserver : IDisposable
+    public class MongoInvocationObserver : BackgroundService
     {
         private readonly MongoOptions _options;
         private readonly MongoHubConnectionStore _connectionStore;
         private readonly IMongoDbContext _db;
         private readonly ILogger _logger;
         private int _failureTimeout;
-        private readonly CancellationTokenSource _cts;
-        private readonly CancellationToken _cancellation;
 
         public MongoInvocationObserver(
             MongoHubConnectionStore connectionStore,
@@ -29,25 +28,23 @@ namespace Mongo.SignalR.Backplane
             _connectionStore = connectionStore;
             _db = db;
             _logger = logger;
-            _cts = new CancellationTokenSource();
-            _cancellation = _cts.Token;
         }
 
-        public async Task StartAsync()
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var options = new FindOptions<MongoInvocation> {CursorType = CursorType.TailableAwait};
 
             var lastId = ObjectId.GenerateNewId(DateTime.UtcNow);
             var filter = new BsonDocument("_id", new BsonDocument("$gt", lastId));
 
-            while (!_cancellation.IsCancellationRequested)
+            while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
                     // Start the cursor and wait for the initial response
-                    using var cursor = _db.Invocations.FindSync(filter, options, _cancellation);
+                    using var cursor = _db.Invocations.FindSync(filter, options, stoppingToken);
 
-                    while (await cursor.MoveNextAsync(_cancellation))
+                    while (await cursor.MoveNextAsync(stoppingToken))
                     {
                         foreach (var invocation in cursor.Current)
                         {
@@ -72,7 +69,7 @@ namespace Mongo.SignalR.Backplane
                 }
                 catch (MongoCommandException commandException)
                 {
-                    await HandleMongoCommandException(commandException, _cancellation);
+                    await HandleMongoCommandException(commandException, stoppingToken);
                 }
                 catch (Exception e)
                 {
@@ -154,12 +151,6 @@ namespace Mongo.SignalR.Backplane
             }
 
             return timeout;
-        }
-
-        public void Dispose()
-        {
-            _cts.Cancel();
-            _cts.Dispose();
         }
     }
 }

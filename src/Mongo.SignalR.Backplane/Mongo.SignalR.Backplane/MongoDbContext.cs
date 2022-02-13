@@ -61,7 +61,7 @@ public class MongoDbContext : IMongoDbContext
         }
     }
 
-    private bool CollectionExists(IMongoDatabase database, string collectionName)
+    private static bool CollectionExists(IMongoDatabase database, string collectionName)
     {
         var filter = new BsonDocument("name", collectionName);
         var options = new ListCollectionNamesOptions {Filter = filter};

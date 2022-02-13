@@ -24,8 +24,8 @@ public static class MongoBackplaneDependencyInjectionExtensions
         signalrBuilder.Services.AddSingleton(mongoClient);
         signalrBuilder.Services.AddSingleton(new MongoHubConnectionStore());
         signalrBuilder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
+        signalrBuilder.Services.AddHostedService<MongoInvocationObserver>();
         signalrBuilder.Services.AddSingleton(typeof(HubLifetimeManager<>), typeof(MongoHubLifetimeManager<>));
         return signalrBuilder;
     }
-    
 }

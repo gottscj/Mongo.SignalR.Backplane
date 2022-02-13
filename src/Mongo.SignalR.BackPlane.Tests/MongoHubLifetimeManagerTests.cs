@@ -26,7 +26,7 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
     private IMongoClient _mongoClient;
     private const string DatabaseName = "signalr-backplane";
     private MongoDbRunner _runner;
-    
+    private static readonly List<MongoInvocationObserver> Observers = new List<MongoInvocationObserver>();
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
@@ -38,8 +38,17 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
     public void SetUp()
     {
         _mongoClient.DropDatabase(DatabaseName);
+        Observers.Clear();
     }
 
+    [TearDown]
+    public void TearDown()
+    {
+        foreach (var observer in Observers)
+        {
+            observer.StopAsync(CancellationToken.None);
+        }
+    }
     [OneTimeTearDown]
     public void OneTimeTearDown()
     {
@@ -57,6 +66,8 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
         var store = new MongoHubConnectionStore();
         var db = new MongoDbContext(options, client);
         var observer = new MongoInvocationObserver(store, db, options, NullLogger<MongoInvocationObserver>.Instance);
+        Observers.Add(observer);
+        observer.StartAsync(CancellationToken.None);
         var resolver = new DefaultHubProtocolResolver(new IHubProtocol[]
         {
             new NewtonsoftJsonHubProtocol(Options.Create(jsonOptions)),
@@ -65,7 +76,6 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
         
         return new MongoHubLifetimeManager<Hub>(
             store,
-            observer,
             db,
             NullLogger<MongoHubLifetimeManager<Hub>>.Instance,
             resolver);
@@ -86,8 +96,8 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
 
         using var client1 = new TestClient();
         using var client2 = new TestClient();
-        using var manager1 = CreateLifetimeManager(_mongoClient, messagePackOptions, jsonOptions);
-        using var manager2 = CreateLifetimeManager(_mongoClient);
+        var manager1 = CreateLifetimeManager(_mongoClient, messagePackOptions, jsonOptions);
+        var manager2 = CreateLifetimeManager(_mongoClient);
         var connection1 = HubConnectionContextUtils.Create(client1.Connection);
         var connection2 = HubConnectionContextUtils.Create(client2.Connection);
 
