@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
 namespace MongoSignalR.Backplane.Sample.Controllers;
 
+[BasicAuthorizationAttribute]
 [ApiController]
 [Route("[controller]")]
 public class ChatControlController : ControllerBase
@@ -48,6 +50,24 @@ public class ChatControlController : ControllerBase
     {
         _logger.LogInformation("CONTROLLER - RemoveFromGroup - {ConnectionId}:{Group}", connectionId, group);
         await _hubContext.Groups.RemoveFromGroupAsync(connectionId, group);
+
+        return Ok();
+    }
+    
+    [HttpPost("send-connection", Name = "SendConnection")]
+    public async Task<IActionResult> SendConnection(string connectionId, string message)
+    {
+        _logger.LogInformation("CONTROLLER - SendConnection - {ConnectionId}:{Message}", connectionId, message);
+        await _hubContext.Clients.Client(connectionId).SendAsync("NewMessage", message);
+
+        return Ok();
+    }
+    
+    [HttpPost("send-user", Name = "SendUser")]
+    public async Task<IActionResult> SendUser(string user, string message)
+    {
+        _logger.LogInformation("CONTROLLER - SendUser - {User}:{Message}", user, message);
+        await _hubContext.Clients.User(user).SendAsync("NewMessage", message);
 
         return Ok();
     }

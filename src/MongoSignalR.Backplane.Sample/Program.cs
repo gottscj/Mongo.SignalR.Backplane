@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Mongo.SignalR.Backplane;
 using MongoDB.Driver;
 using MongoSignalR.Backplane.Sample;
@@ -27,7 +30,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHostedService<ChatClient>();
 builder.Services.AddSingleton(appUrl);
-
+builder.Services.AddAuthentication("BasicAuthentication")
+    .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("BasicAuthentication", options => { });
+builder.Services.AddAuthorization(options =>
+{
+    options
+        .AddPolicy("BasicAuthentication", new AuthorizationPolicyBuilder("BasicAuthentication")
+            .RequireAuthenticatedUser().Build());
+});
 var client = new MongoClient("mongodb://localhost:27017");
 
 builder.Services
@@ -36,15 +46,17 @@ builder.Services
     {
         options.EnableDetailedErrors = true;
     }).AddMongoBackplane(client);
+builder.Services.AddSingleton<IUserIdProvider, NameUserIdProvider>();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.EnableTryItOutByDefault();
+    c.OAuthConfigObject.UseBasicAuthenticationWithAccessCodeGrant = true;
+});
 
 app.UseHttpsRedirection();
 
@@ -54,4 +66,4 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ChatHub>("/chatHub");
 
-app.Run(appUrl.Url);
+app.Run(appUrl.Url.ToString());

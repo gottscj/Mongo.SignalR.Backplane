@@ -1,8 +1,8 @@
-﻿using System.Net;
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 
 namespace MongoSignalR.Backplane.Sample;
 
+[BasicAuthorizationAttribute]
 public class ChatHub : Hub
 {
     private readonly ILogger _logger;
@@ -20,7 +20,8 @@ public class ChatHub : Hub
     public override async Task OnConnectedAsync()
     {
         await base.OnConnectedAsync();
-        _logger.LogInformation("Connected: {ConnectionId}", Context.ConnectionId);
+        _logger.LogInformation("Connected: {ConnectionId}, User:{User}", Context
+            .ConnectionId, string.Join(",", Context.User?.Claims.Select(c => $"{c.Type}:{c.Value}") ?? new List<string>()));
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

@@ -4,20 +4,13 @@ public class AppUrl
 {
     public AppUrl(string url)
     {
-        if (url.EndsWith("/"))
-        {
-            Url = url.Remove(url.Length-1);
-        }
-        else
-        {
-            Url = url;
-        }
+        Url = new Uri(url);
     }
 
-    public string Url { get; }
+    public Uri Url { get; }
 
     public override string ToString()
     {
-        return Url;
+        return Url.ToString();
     }
 }
