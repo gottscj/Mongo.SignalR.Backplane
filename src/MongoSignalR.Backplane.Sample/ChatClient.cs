@@ -13,8 +13,8 @@ namespace MongoSignalR.Backplane.Sample
         {
             _appUrl = appUrl;
             _logger = logger;
-
         }
+        
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             await Task.Delay(1000, stoppingToken);
