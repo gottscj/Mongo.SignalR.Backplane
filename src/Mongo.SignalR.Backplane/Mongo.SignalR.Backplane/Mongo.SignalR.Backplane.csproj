@@ -4,6 +4,14 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
+        <Version>1.0.0</Version>
+        <Authors>Jonas Gottschau</Authors>
+        <Title>Mongo.SignalR.Backplane</Title>
+        <PackageTags>MongoDB SignalR backplane</PackageTags>
+        <Description>
+            Mongo DB Backplane for signalr. uses tailable cursor for instant (almost) invocation notification 
+        </Description>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>
