@@ -58,4 +58,4 @@ jobs:
         asset_content_type: application/zip
         
     - name: Publish to nuget.org
-      run: dotnet nuget push src/Mongo.SignalR.Backplane/bin/Release/Mongo.SignalR.Backplane.*.nupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push src\Mongo.SignalR.Backplane\Mongo.SignalR.Backplane\bin\Release\Mongo.SignalR.Backplane.*.nupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
