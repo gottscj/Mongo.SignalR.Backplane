@@ -153,6 +153,8 @@ public abstract class ScaleoutHubLifetimeManagerTests<TBackplane> : HubLifetimeM
 
         await manager.OnDisconnectedAsync(connection).DefaultTimeout();
 
+        await Task.Delay(200);
+
         await manager.SendGroupAsync("name", "Hello", new object[] { "World" }).DefaultTimeout();
 
         Assert.Null(client.TryRead());
