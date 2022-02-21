@@ -59,7 +59,6 @@ namespace Mongo.SignalR.Backplane
                             {
                                 _logger.LogTrace("Invocation '{Type}'", invocation.GetType().Name);
                             }
-
                             await invocation.Process(_connectionStore);
                         }
                     }

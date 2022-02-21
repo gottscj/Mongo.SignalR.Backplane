@@ -27,24 +27,32 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
     private const string DatabaseName = "signalr-backplane";
     private MongoDbRunner _runner;
     private static readonly List<MongoInvocationObserver> Observers = new List<MongoInvocationObserver>();
- 
+    [OneTimeSetUp]
+    public void OneTimeSetUp()
+    {
+        _runner = Mongo2Go.MongoDbRunner.Start(logger: NullLogger<MongoDbRunner>.Instance);
+        _mongoClient = new MongoClient(_runner.ConnectionString);
+    }
     
     [SetUp]
     public void SetUp()
     {
-        _runner = Mongo2Go.MongoDbRunner.Start(logger: NullLogger<MongoDbRunner>.Instance);
-        _mongoClient = new MongoClient(_runner.ConnectionString);
+        _mongoClient.DropDatabase(DatabaseName);
         Observers.Clear();
     }
 
     [TearDown]
-    public async Task TearDown()
+    public void TearDown()
     {
         foreach (var observer in Observers)
         {
-            await observer.StopAsync(CancellationToken.None);
+            observer.StopAsync(CancellationToken.None).Wait();
         }
-        await _mongoClient.DropDatabaseAsync(DatabaseName);
+    }
+    [OneTimeTearDown]
+    public void OneTimeTearDown()
+    {
+        _mongoClient.DropDatabase(DatabaseName);
         _runner.Dispose();
     }
 

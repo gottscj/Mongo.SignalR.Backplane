@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -178,22 +179,19 @@ public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
 
     public void Remove(HubConnectionContext connection)
     {
-        if (!_connections.TryRemove(connection.ConnectionId, out _))
-        {
-            return;
-        }
+        _connections.TryRemove(connection.ConnectionId, out _);
 
-        if (string.IsNullOrEmpty(connection.UserIdentifier))
+        if (!string.IsNullOrEmpty(connection.UserIdentifier))
         {
-            return;
-        }
-        lock (_users)
-        {
-            if (_users.TryGetValue(connection.UserIdentifier, out var users))
+            lock (_users)
             {
-                users.Remove(connection);
+                if (_users.TryGetValue(connection.UserIdentifier, out var users))
+                {
+                    users.Remove(connection);
+                }
             }
         }
+        
         lock (_groups)
         {
             _groups.TryRemove(connection.ConnectionId, out _);
