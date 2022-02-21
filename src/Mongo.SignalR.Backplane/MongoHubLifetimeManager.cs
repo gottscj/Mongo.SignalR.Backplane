@@ -136,7 +136,6 @@ namespace Mongo.SignalR.Backplane
             if (_connections.AddToGroup(connectionId, groupName))
             {
                 // short circuit if connection is on this server
-
                 return;
             }
 

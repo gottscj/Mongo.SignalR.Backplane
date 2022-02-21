@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +9,6 @@ namespace Mongo.SignalR.Backplane;
 
 public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
 {
-    private readonly Dictionary<string, HashSet<string>> _groupNames;
     private readonly ConcurrentDictionary<string, HubConnectionContext> _connections;
     private readonly ConcurrentDictionary<string, HubConnectionStore> _groups;
     private readonly ConcurrentDictionary<string, HubConnectionStore> _users;
@@ -18,7 +16,6 @@ public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
 
     public MongoHubConnectionStore()
     {
-        _groupNames = new Dictionary<string, HashSet<string>>();
         _connections = new ConcurrentDictionary<string, HubConnectionContext>();
         _groups = new ConcurrentDictionary<string, HubConnectionStore>();
         _users = new ConcurrentDictionary<string, HubConnectionStore>();
@@ -35,16 +32,6 @@ public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
             var store = _groups.GetOrAdd(groupName, _ => new HubConnectionStore());
             store.Add(connection);
         }
-        lock (_groupNames)
-        {
-            if (!_groupNames.TryGetValue(connectionId, out var groupNames))
-            {
-                groupNames = new HashSet<string>();
-                _groupNames[connectionId] = groupNames;
-            }
-
-            groupNames.Add(groupName);
-        }
 
         return true;
     }
@@ -58,17 +45,6 @@ public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
                 if (_connections.TryGetValue(connectionId, out var connection))
                 {
                     connectionStore.Remove(connection);
-                }
-            }
-        }
-        lock (_groupNames)
-        {
-            if (_groupNames.TryGetValue(connectionId, out var groupNames))
-            {
-                groupNames.Remove(groupName);
-                if (!groupNames.Any())
-                {
-                    _groupNames.Remove(connectionId);
                 }
             }
         }
@@ -180,7 +156,6 @@ public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
     public void Remove(HubConnectionContext connection)
     {
         _connections.TryRemove(connection.ConnectionId, out _);
-
         if (!string.IsNullOrEmpty(connection.UserIdentifier))
         {
             lock (_users)
@@ -194,11 +169,10 @@ public class MongoHubConnectionStore : IEnumerable<HubConnectionContext>
         
         lock (_groups)
         {
-            _groups.TryRemove(connection.ConnectionId, out _);
-        }
-        lock (_groupNames)
-        {
-            _groupNames.Remove(connection.ConnectionId);
+            foreach (var store in _groups.Select(g => g.Value))
+            {
+                store.Remove(connection);
+            }
         }
     }
 }
