@@ -30,29 +30,29 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        _runner = Mongo2Go.MongoDbRunner.Start();
+        _runner = Mongo2Go.MongoDbRunner.Start(logger: NullLogger<MongoDbRunner>.Instance);
         _mongoClient = new MongoClient(_runner.ConnectionString);
     }
     
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
     {
-        _mongoClient.DropDatabase(DatabaseName);
+        await _mongoClient.DropDatabaseAsync(DatabaseName);
         Observers.Clear();
     }
 
     [TearDown]
-    public void TearDown()
+    public async Task TearDown()
     {
         foreach (var observer in Observers)
         {
-            observer.StopAsync(CancellationToken.None);
+            await observer.StopAsync(CancellationToken.None);
         }
     }
     [OneTimeTearDown]
-    public void OneTimeTearDown()
+    public async Task OneTimeTearDown()
     {
-        _mongoClient.DropDatabase(DatabaseName);
+        await _mongoClient.DropDatabaseAsync(DatabaseName);
         _runner.Dispose();
     }
 
