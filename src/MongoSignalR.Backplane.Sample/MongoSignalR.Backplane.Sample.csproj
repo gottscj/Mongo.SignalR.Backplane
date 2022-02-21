@@ -22,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Mongo.SignalR.Backplane\Mongo.SignalR.Backplane\Mongo.SignalR.Backplane.csproj" />
+      <ProjectReference Include="..\Mongo.SignalR.Backplane\Mongo.SignalR.Backplane.csproj" />
     </ItemGroup>
 
 </Project>
