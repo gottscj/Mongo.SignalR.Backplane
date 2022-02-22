@@ -17,7 +17,7 @@ internal class DefaultHubMessageSerializer
     {
         var supportedProtocols = hubSupportedProtocols ?? globalSupportedProtocols ?? Array.Empty<string>();
         _hubProtocols = new List<IHubProtocol>(supportedProtocols.Count);
-        foreach (var protocolName in supportedProtocols)
+        foreach (var protocolName in supportedProtocols.Distinct())
         {
             var protocol = hubProtocolResolver.GetProtocol(protocolName, (supportedProtocols as IReadOnlyList<string>) ?? supportedProtocols.ToList());
             if (protocol != null)
