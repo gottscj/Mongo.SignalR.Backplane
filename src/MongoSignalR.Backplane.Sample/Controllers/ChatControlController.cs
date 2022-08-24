@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
 namespace MongoSignalR.Backplane.Sample.Controllers;
 
-[BasicAuthorizationAttribute]
+[BasicAuthorization]
 [ApiController]
 [Route("[controller]")]
 public class ChatControlController : ControllerBase
