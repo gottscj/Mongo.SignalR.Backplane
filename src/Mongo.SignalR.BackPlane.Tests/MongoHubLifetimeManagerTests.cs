@@ -1,11 +1,9 @@
-using System.Diagnostics;
+using EphemeralMongo;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Internal;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Mongo2Go;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
@@ -25,12 +23,17 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
 
     private IMongoClient _mongoClient;
     private const string DatabaseName = "signalr-backplane";
-    private MongoDbRunner _runner;
+    private IMongoRunner _runner;
     private static readonly List<MongoInvocationObserver> Observers = new List<MongoInvocationObserver>();
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        _runner = Mongo2Go.MongoDbRunner.Start(logger: NullLogger<MongoDbRunner>.Instance);
+        var options = new MongoRunnerOptions
+        {
+            StandardOuputLogger = Console.WriteLine,
+            StandardErrorLogger = Console.WriteLine,
+        };
+        _runner = EphemeralMongo.MongoRunner.Run(options);
         _mongoClient = new MongoClient(_runner.ConnectionString);
     }
     

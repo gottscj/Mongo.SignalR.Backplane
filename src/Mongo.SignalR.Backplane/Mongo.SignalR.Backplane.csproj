@@ -4,7 +4,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
-        <Version>1.0.3</Version>
+        <Version>1.0.4</Version>
         <Authors>Jonas Gottschau</Authors>
         <Title>Mongo.SignalR.Backplane</Title>
         <PackageTags>MongoDB SignalR backplane</PackageTags>
@@ -17,8 +17,8 @@
     <ItemGroup>
       <PackageReference Include="Microsoft.AspNet.SignalR" Version="2.4.3" />
       <PackageReference Include="Microsoft.AspNetCore.SignalR.Core" Version="1.1.0" />
-      <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
-      <PackageReference Include="MongoDB.Driver" Version="2.18.0" />
+      <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0" />
+      <PackageReference Include="MongoDB.Driver" Version="2.21.0" />
     </ItemGroup>
 
     <ItemGroup>
