@@ -5,9 +5,7 @@ using System.Buffers;
 using System.ComponentModel;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.AspNetCore.SignalR.Internal;
 using Microsoft.AspNetCore.SignalR.Protocol;
-using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 
 namespace Mongo.SignalR.Backplane.Tests;
@@ -60,7 +58,7 @@ public class DefaultHubMessageSerializerTests
 
     private IHubProtocolResolver CreateHubProtocolResolver(List<IHubProtocol> hubProtocols)
     {
-        return new DefaultHubProtocolResolver(hubProtocols, NullLogger<DefaultHubProtocolResolver>.Instance);
+        return new TestHubProtocolResolver(hubProtocols);
     }
 
     private static readonly Dictionary<string, ProtocolTestData> _invocationTestData = new[]
