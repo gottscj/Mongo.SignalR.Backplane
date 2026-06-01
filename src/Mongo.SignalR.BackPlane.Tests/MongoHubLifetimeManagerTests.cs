@@ -30,7 +30,7 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
     {
         var options = new MongoRunnerOptions
         {
-            StandardOuputLogger = Console.WriteLine,
+            StandardOutputLogger = Console.WriteLine,
             StandardErrorLogger = Console.WriteLine,
         };
         _runner = EphemeralMongo.MongoRunner.Run(options);
