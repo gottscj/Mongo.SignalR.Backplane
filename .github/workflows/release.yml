@@ -32,10 +32,13 @@ jobs:
       run: dotnet restore ./src
 
     - name: Build
-      run: dotnet publish ./src -c Release --no-restore -o ./release
+      run: dotnet build ./src -c Release --no-restore
 
     - name: Test
       run: dotnet test ./src -c Release --no-build --verbosity normal
+
+    - name: Pack
+      run: dotnet pack ./src/Mongo.SignalR.Backplane/Mongo.SignalR.Backplane.csproj -c Release --no-build --output ./release
 
     - name: Zip
       run: zip -qr Mongo.SignalR.Backplane-${{ github.event.inputs.version }}.zip ./release
@@ -63,7 +66,7 @@ jobs:
         asset_content_type: application/zip
         
     - name: Publish to nuget.org
-      run: dotnet nuget push src/Mongo.SignalR.Backplane/bin/Release/Mongo.SignalR.Backplane.*.nupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push ./release/Mongo.SignalR.Backplane.*.nupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
 
     - name: Publish symbols to nuget.org
-      run: dotnet nuget push src/Mongo.SignalR.Backplane/bin/Release/Mongo.SignalR.Backplane.*.snupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push ./release/Mongo.SignalR.Backplane.*.snupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
