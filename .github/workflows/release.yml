@@ -67,6 +67,3 @@ jobs:
         
     - name: Publish to nuget.org
       run: dotnet nuget push ./release/Mongo.SignalR.Backplane.*.nupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
-
-    - name: Publish symbols to nuget.org
-      run: dotnet nuget push ./release/Mongo.SignalR.Backplane.*.snupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
