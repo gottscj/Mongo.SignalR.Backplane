@@ -1,6 +1,5 @@
 using EphemeralMongo;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.AspNetCore.SignalR.Internal;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -71,11 +70,11 @@ public class MongoHubLifetimeManagerTests : ScaleoutHubLifetimeManagerTests<IMon
         var observer = new MongoInvocationObserver(store, db, options, NullLogger<MongoInvocationObserver>.Instance);
         Observers.Add(observer);
         observer.StartAsync(CancellationToken.None);
-        var resolver = new DefaultHubProtocolResolver(new IHubProtocol[]
+        var resolver = new TestHubProtocolResolver(new IHubProtocol[]
         {
             new NewtonsoftJsonHubProtocol(Options.Create(jsonOptions)),
             new MessagePackHubProtocol(Options.Create(messagePackOptions)),
-        }, NullLogger<DefaultHubProtocolResolver>.Instance);
+        });
         
         return new MongoHubLifetimeManager<Hub>(
             store,

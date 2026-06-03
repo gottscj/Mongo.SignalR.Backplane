@@ -55,14 +55,14 @@ namespace Mongo.SignalR.Backplane
             return Task.CompletedTask;
         }
 
-        public override async Task SendAllAsync(string methodName, object[] args,
+        public override async Task SendAllAsync(string methodName, object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
             await _db.Insert(MongoInvocation.SendAll(messages), cancellationToken);
         }
 
-        public override async Task SendAllExceptAsync(string methodName, object[] args,
+        public override async Task SendAllExceptAsync(string methodName, object?[] args,
             IReadOnlyList<string>? excludedConnectionIds,
             CancellationToken cancellationToken = new CancellationToken())
         {
@@ -70,7 +70,7 @@ namespace Mongo.SignalR.Backplane
             await _db.Insert(MongoInvocation.SendAll(messages, excludedConnectionIds), cancellationToken);
         }
 
-        public override async Task SendConnectionAsync(string connectionId, string methodName, object[] args,
+        public override async Task SendConnectionAsync(string connectionId, string methodName, object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             // If the connection is local we can skip sending the message through the bus since we require sticky connections.
@@ -87,28 +87,28 @@ namespace Mongo.SignalR.Backplane
         }
 
         public override async Task SendConnectionsAsync(IReadOnlyList<string> connectionIds, string methodName,
-            object[] args,
+            object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
             await _db.Insert(MongoInvocation.Connection(messages, connectionIds), cancellationToken);
         }
 
-        public override async Task SendGroupAsync(string groupName, string methodName, object[] args,
+        public override async Task SendGroupAsync(string groupName, string methodName, object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
             await _db.Insert(MongoInvocation.SendGroup(messages, groupName), cancellationToken);
         }
 
-        public override async Task SendGroupsAsync(IReadOnlyList<string> groupNames, string methodName, object[] args,
+        public override async Task SendGroupsAsync(IReadOnlyList<string> groupNames, string methodName, object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
             await _db.Insert(MongoInvocation.SendGroup(messages, groupNames), cancellationToken);
         }
 
-        public override async Task SendGroupExceptAsync(string groupName, string methodName, object[] args,
+        public override async Task SendGroupExceptAsync(string groupName, string methodName, object?[] args,
             IReadOnlyList<string> excludedConnectionIds,
             CancellationToken cancellationToken = new CancellationToken())
         {
@@ -116,14 +116,14 @@ namespace Mongo.SignalR.Backplane
             await _db.Insert(MongoInvocation.SendGroup(messages, groupName, excludedConnectionIds), cancellationToken);
         }
 
-        public override async Task SendUserAsync(string userId, string methodName, object[] args,
+        public override async Task SendUserAsync(string userId, string methodName, object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
             await _db.Insert(MongoInvocation.SendUser(messages, userId), cancellationToken);
         }
 
-        public override async Task SendUsersAsync(IReadOnlyList<string> userIds, string methodName, object[] args,
+        public override async Task SendUsersAsync(IReadOnlyList<string> userIds, string methodName, object?[] args,
             CancellationToken cancellationToken = new CancellationToken())
         {
             var messages = GetMessages(methodName, args);
@@ -157,9 +157,9 @@ namespace Mongo.SignalR.Backplane
             await _db.Insert(MongoInvocation.RemoveFromGroup(connectionId, groupName), cancellationToken);
         }
 
-        private IEnumerable<SerializedMessage> GetMessages(string methodName, object[]? args)
+        private IEnumerable<SerializedMessage> GetMessages(string methodName, object?[]? args)
         {
-            var messages = _messageSerializer.SerializeMessage(new InvocationMessage(methodName, args));
+            var messages = _messageSerializer.SerializeMessage(new InvocationMessage(methodName, args ?? Array.Empty<object>()));
             return messages;
         }
     }
